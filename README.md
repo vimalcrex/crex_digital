@@ -139,10 +139,14 @@ The platform integrates with major advertising networks to deliver high-converti
 - Stripe Billing API
 - Webhook delivery system
 
-### Infrastructure
-- Cloud hosting (AWS/GCP/Vercel)
-- CDN for landing pages
-- SSL/TLS for all domains
+### Infrastructure (Render)
+- **Web Service** - Next.js application
+- **PostgreSQL** - Managed database
+- **Redis** - Managed caching layer
+- **Background Workers** - Async job processing
+- **Static Sites** - Landing page hosting with global CDN
+- **Cron Jobs** - Scheduled tasks (reporting, sync)
+- SSL/TLS included on all services
 
 ### Authentication
 - NextAuth.js / Auth0 for identity management
@@ -150,38 +154,81 @@ The platform integrates with major advertising networks to deliver high-converti
 - JWT tokens for API authentication
 - SSO support for enterprise customers
 
-## Deployment
+## Deployment (Render)
+
+All services hosted on [Render](https://render.com) for unified management and billing.
+
+### Render Services
+
+| Service | Type | Branch | Purpose |
+|---------|------|--------|---------|
+| `crex-web` | Web Service | `main` | Next.js app (admin + customer portals) |
+| `crex-worker` | Background Worker | `main` | Async jobs (ad sync, reports) |
+| `crex-db` | PostgreSQL | - | Primary database |
+| `crex-redis` | Redis | - | Caching & job queues |
+| `crex-landing` | Static Site | `main` | Landing page templates |
 
 ### Environments
 
-| Environment | Branch | URL | Purpose |
-|-------------|--------|-----|---------|
-| Production | `main` | crexdigital.com | Live customer-facing |
-| Staging | `staging` | staging.crexdigital.com | Pre-release testing |
-| Development | `dev` | dev.crexdigital.com | Active development |
+| Environment | Render Project | URL | Branch |
+|-------------|----------------|-----|--------|
+| Production | crex-prod | crexdigital.com | `main` |
+| Staging | crex-staging | staging.crexdigital.com | `staging` |
 
 ### CI/CD Pipeline
 
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Commit    │────▶│    Build    │────▶│    Test     │────▶│   Deploy    │
-│  to main    │     │   & Lint    │     │   Suite     │     │    Auto     │
+│   Push to   │────▶│   Render    │────▶│   Build &   │────▶│   Deploy    │
+│    main     │     │   Webhook   │     │    Test     │     │    Live     │
 └─────────────┘     └─────────────┘     └─────────────┘     └─────────────┘
 ```
 
-- **Auto-deploy on merge to `main`** - Production deployment triggered automatically
-- GitHub Actions for CI/CD workflow
-- Automated testing before deploy (unit, integration, e2e)
-- Database migrations run automatically
-- Rollback capability for failed deployments
+- **Auto-deploy on push to `main`** - Render deploys automatically via GitHub integration
+- Preview environments for pull requests
+- Zero-downtime deployments
+- Automatic rollback on failed health checks
+- Database migrations via release command
+
+### Environment Variables (Render Dashboard)
+
+```
+# Database
+DATABASE_URL=              # Auto-set by Render
+REDIS_URL=                 # Auto-set by Render
+
+# Authentication
+NEXTAUTH_SECRET=
+NEXTAUTH_URL=
+
+# Ad Platforms
+GOOGLE_ADS_CLIENT_ID=
+GOOGLE_ADS_CLIENT_SECRET=
+GOOGLE_ADS_DEVELOPER_TOKEN=
+META_APP_ID=
+META_APP_SECRET=
+LINKEDIN_CLIENT_ID=
+LINKEDIN_CLIENT_SECRET=
+
+# Billing
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+STRIPE_PUBLISHABLE_KEY=
+```
+
+### Render Blueprint (render.yaml)
+
+Infrastructure as code - all services defined in `render.yaml` for one-click setup.
 
 ### Deployment Checklist
-- [ ] All tests passing
-- [ ] Environment variables configured
-- [ ] Database migrations reviewed
-- [ ] Stripe webhooks configured
-- [ ] Ad platform API keys set
-- [ ] DNS and SSL certificates active
+- [ ] Render account created and team invited
+- [ ] GitHub repo connected to Render
+- [ ] Environment variables configured in Render dashboard
+- [ ] PostgreSQL and Redis provisioned
+- [ ] Custom domain added and DNS configured
+- [ ] SSL certificates auto-provisioned
+- [ ] Stripe webhooks pointed to Render URL
+- [ ] Ad platform OAuth callbacks configured
 
 ## Landing Page Templates
 
@@ -208,7 +255,7 @@ Templates will be organized by property type and campaign goal:
 - [ ] Basic dashboard with spend tracking
 - [ ] Single landing page template
 - [ ] Stripe billing setup
-- [ ] CI/CD pipeline with auto-deploy to production
+- [ ] Render deployment with auto-deploy on merge to main
 
 ### Phase 2 - Core Platform
 - [ ] Facebook/Meta Ads integration
