@@ -36,6 +36,24 @@ The platform integrates with major advertising networks to deliver high-converti
 - No CRM lock-in - leads go straight to the property owner or management company
 - Webhook integrations for real-time lead delivery
 
+### Authentication & Access Control
+
+**Admin Portal**
+- Internal team access for CREX Digital staff
+- Customer account management and onboarding
+- Campaign setup and configuration
+- Template management and creation
+- Billing administration
+- Platform-wide analytics and reporting
+
+**Customer Portal**
+- Secure login for property owners/managers
+- View-only access to their campaigns and spend
+- Dashboard with performance metrics
+- Landing page preview and approval
+- Billing history and invoices
+- Lead activity logs
+
 ## Pricing Model
 
 | Component | Price |
@@ -126,6 +144,45 @@ The platform integrates with major advertising networks to deliver high-converti
 - CDN for landing pages
 - SSL/TLS for all domains
 
+### Authentication
+- NextAuth.js / Auth0 for identity management
+- Role-based access control (RBAC)
+- JWT tokens for API authentication
+- SSO support for enterprise customers
+
+## Deployment
+
+### Environments
+
+| Environment | Branch | URL | Purpose |
+|-------------|--------|-----|---------|
+| Production | `main` | crexdigital.com | Live customer-facing |
+| Staging | `staging` | staging.crexdigital.com | Pre-release testing |
+| Development | `dev` | dev.crexdigital.com | Active development |
+
+### CI/CD Pipeline
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   Commit    │────▶│    Build    │────▶│    Test     │────▶│   Deploy    │
+│  to main    │     │   & Lint    │     │   Suite     │     │    Auto     │
+└─────────────┘     └─────────────┘     └─────────────┘     └─────────────┘
+```
+
+- **Auto-deploy on merge to `main`** - Production deployment triggered automatically
+- GitHub Actions for CI/CD workflow
+- Automated testing before deploy (unit, integration, e2e)
+- Database migrations run automatically
+- Rollback capability for failed deployments
+
+### Deployment Checklist
+- [ ] All tests passing
+- [ ] Environment variables configured
+- [ ] Database migrations reviewed
+- [ ] Stripe webhooks configured
+- [ ] Ad platform API keys set
+- [ ] DNS and SSL certificates active
+
 ## Landing Page Templates
 
 Templates will be organized by property type and campaign goal:
@@ -145,11 +202,13 @@ Templates will be organized by property type and campaign goal:
 ## Roadmap
 
 ### Phase 1 - MVP
-- [ ] User authentication and onboarding
+- [ ] Admin authentication and portal
+- [ ] Customer authentication and portal
 - [ ] Google Ads integration
 - [ ] Basic dashboard with spend tracking
 - [ ] Single landing page template
 - [ ] Stripe billing setup
+- [ ] CI/CD pipeline with auto-deploy to production
 
 ### Phase 2 - Core Platform
 - [ ] Facebook/Meta Ads integration
