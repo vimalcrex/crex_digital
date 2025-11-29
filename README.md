@@ -118,6 +118,128 @@ The platform integrates with major advertising networks to deliver high-converti
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+## AI-Powered Optimization Engine
+
+CREX Digital uses machine learning to continuously optimize ad performance and landing page conversions based on real-time data from all campaigns.
+
+### Data Pipeline (Fivetran → Data Warehouse)
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│ Google Ads  │────▶│             │     │             │     │    CREX     │
+├─────────────┤     │  Fivetran   │────▶│  Snowflake  │────▶│     AI      │
+│ Facebook Ads│────▶│  Connectors │     │  Warehouse  │     │   Engine    │
+├─────────────┤     │             │     │             │     │             │
+│ LinkedIn Ads│────▶│             │     │             │     │             │
+└─────────────┘     └─────────────┘     └─────────────┘     └─────────────┘
+```
+
+**Fivetran Connectors:**
+- Google Ads Connector - Campaign, ad group, keyword, and conversion data
+- Facebook Ads Connector - Ad insights, creative performance, audience data
+- LinkedIn Ads Connector - B2B campaign metrics and lead data
+- Unified schema via `dbt_ad_reporting` package for cross-platform analysis
+
+**Data Sync Schedule:**
+- Ad performance data: Every 6 hours
+- Conversion data: Real-time via webhooks + hourly batch
+- Creative assets: Daily sync
+
+### AI Ad Optimization
+
+**Smart Budget Allocation:**
+- ML model predicts conversion likelihood by campaign, ad set, and creative
+- Automatically shifts budget to highest-performing combinations
+- Daily rebalancing based on 7-day rolling performance window
+
+**Audience Optimization:**
+- Analyzes which demographics, locations, and interests convert best
+- Recommends audience expansions or restrictions
+- Identifies high-intent renters using behavioral signals
+
+**Creative Performance Scoring:**
+- Scores ad creatives (headlines, images, CTAs) based on historical performance
+- Recommends top-performing creative combinations
+- Flags underperforming ads for refresh
+
+**Bid Optimization:**
+- Integrates with platform smart bidding (Google tROAS, Meta Advantage+)
+- Provides first-party conversion data via Conversions API for better ML training
+- Recommends bid adjustments based on property-specific conversion patterns
+
+### AI Landing Page Optimization
+
+**Dynamic Personalization:**
+- Customizes landing page content based on:
+  - Traffic source (Google vs Facebook vs LinkedIn)
+  - Geographic location (neighborhood-specific content)
+  - Device type (mobile-optimized layouts)
+  - Time of day (showing relevant amenities)
+- Personalized CTAs can increase conversions by up to 42%
+
+**Smart A/B Testing:**
+- Multi-armed bandit algorithm for real-time traffic allocation
+- Tests headlines, images, layouts, and form fields simultaneously
+- Automatically promotes winning variants without manual intervention
+- Expected lift: 20-35% improvement in conversion rates
+
+**Friction Detection:**
+- Identifies where visitors drop off in the conversion funnel
+- Analyzes form completion rates and abandonment points
+- Recommends UX improvements to reduce bounce rates
+
+### Continuous Learning Feedback Loop
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│                     CREX AI Optimization Loop                            │
+│                                                                          │
+│   ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐             │
+│   │  Serve  │───▶│ Collect │───▶│  Train  │───▶│ Deploy  │──┐          │
+│   │   Ads   │    │  Data   │    │  Model  │    │  Model  │  │          │
+│   └─────────┘    └─────────┘    └─────────┘    └─────────┘  │          │
+│        ▲                                                     │          │
+│        └─────────────────────────────────────────────────────┘          │
+│                                                                          │
+│   Every interaction teaches the model something new                      │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+**Model Training Cycle:**
+1. **Data Collection** - Fivetran syncs ad data to warehouse every 6 hours
+2. **Feature Engineering** - Extract signals: CTR, CPC, conversion rate, time-to-convert
+3. **Model Update** - Warm-start from previous checkpoint, batch update with new data
+4. **Validation** - Compare predictions against holdout set
+5. **Deployment** - Roll out to production if performance improves
+6. **Monitoring** - Track prediction accuracy, trigger retraining if drift detected
+
+**Key ML Models:**
+| Model | Purpose | Update Frequency |
+|-------|---------|------------------|
+| Budget Allocator | Distribute spend across campaigns | Daily |
+| Conversion Predictor | Score lead quality | Every 6 hours |
+| Creative Ranker | Rank ad creative effectiveness | Weekly |
+| Landing Page Optimizer | Select best page variant per visitor | Real-time |
+
+**Real Estate-Specific Signals:**
+- Seasonal leasing trends (back-to-school, spring move-in)
+- Local market occupancy rates
+- Neighborhood demographic data
+- Property amenity preferences by audience segment
+
+### Optimization Dashboard (Admin)
+
+**AI Insights Panel:**
+- "Budget is 40% allocated to underperforming ad sets - recommend rebalance"
+- "Creative fatigue detected on Campaign X - refresh images"
+- "Landing page variant B outperforming by 23% - promote to 100%"
+- "High-intent audience segment identified in ZIP 75201"
+
+**Automated Actions:**
+- One-click apply AI recommendations
+- Schedule automatic optimizations (with approval workflow)
+- Set guardrails (min/max spend limits, brand safety)
+
 ## Planned Tech Stack
 
 ### Frontend
@@ -138,6 +260,14 @@ The platform integrates with major advertising networks to deliver high-converti
 - LinkedIn Marketing API
 - Stripe Billing API
 - Webhook delivery system
+
+### Data & AI Stack
+- **Fivetran** - ELT connectors for ad platform data
+- **Snowflake** - Cloud data warehouse
+- **dbt** - Data transformation (`dbt_ad_reporting` package)
+- **Python** - ML model training (scikit-learn, XGBoost)
+- **MLflow** - Model versioning and deployment tracking
+- **Redis** - Real-time feature store for landing page personalization
 
 ### Infrastructure (Render)
 - **Web Service** - Next.js application
@@ -214,6 +344,18 @@ LINKEDIN_CLIENT_SECRET=
 STRIPE_SECRET_KEY=
 STRIPE_WEBHOOK_SECRET=
 STRIPE_PUBLISHABLE_KEY=
+
+# Data Pipeline
+FIVETRAN_API_KEY=
+FIVETRAN_API_SECRET=
+SNOWFLAKE_ACCOUNT=
+SNOWFLAKE_USER=
+SNOWFLAKE_PASSWORD=
+SNOWFLAKE_DATABASE=
+SNOWFLAKE_WAREHOUSE=
+
+# ML Pipeline
+MLFLOW_TRACKING_URI=
 ```
 
 ### Render Blueprint (render.yaml)
@@ -263,13 +405,31 @@ Templates will be organized by property type and campaign goal:
 - [ ] Expanded template library
 - [ ] Conversion tracking
 - [ ] Lead routing webhooks
+- [ ] Fivetran connectors setup (Google, Facebook, LinkedIn)
+- [ ] Snowflake data warehouse provisioning
 
-### Phase 3 - Scale
+### Phase 3 - AI Foundation
+- [ ] dbt models for unified ad reporting
+- [ ] Basic ML pipeline (data collection → training → deployment)
+- [ ] Conversion predictor model v1
+- [ ] A/B testing framework for landing pages
+- [ ] AI insights dashboard (recommendations display)
+
+### Phase 4 - AI Optimization
+- [ ] Smart budget allocation model
+- [ ] Creative performance scoring
+- [ ] Landing page personalization engine
+- [ ] Multi-armed bandit for A/B testing
+- [ ] Automated optimization actions (with approval)
+- [ ] Real estate-specific signal integration
+
+### Phase 5 - Scale
 - [ ] Advanced analytics and reporting
-- [ ] A/B testing for landing pages
 - [ ] Custom domain support for landing pages
 - [ ] White-label options
 - [ ] API access for enterprise clients
+- [ ] Model monitoring and drift detection
+- [ ] Self-serve AI recommendations
 
 ## Getting Started
 
