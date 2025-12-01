@@ -1,18 +1,26 @@
-import { PrismaClient } from "@prisma/client";
+import { createClient } from "@supabase/supabase-js";
+import type { Database } from "@/types/database";
 
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
-};
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-export const db =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    log:
-      process.env.NODE_ENV === "development"
-        ? ["query", "error", "warn"]
-        : ["error"],
-  });
+// Client for browser-side operations (uses anon key with RLS)
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = db;
+// Admin client for server-side operations (bypasses RLS)
+export const supabaseAdmin = createClient<Database>(
+  supabaseUrl,
+  supabaseServiceKey || supabaseAnonKey,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  }
+);
 
-export default db;
+// Export db as alias for server-side usage (admin client)
+export const db = supabaseAdmin;
+
+export default supabase;

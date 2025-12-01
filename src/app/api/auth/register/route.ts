@@ -26,9 +26,11 @@ export async function POST(req: Request) {
     const { name, email, password, companyName, phone } = validation.data;
 
     // Check if user already exists
-    const existingUser = await db.user.findUnique({
-      where: { email: email.toLowerCase() },
-    });
+    const { data: existingUser } = await db
+      .from("users")
+      .select("id")
+      .eq("email", email.toLowerCase())
+      .single();
 
     if (existingUser) {
       return NextResponse.json(
@@ -41,25 +43,47 @@ export async function POST(req: Request) {
     const hashedPassword = await hashPassword(password);
 
     // Create organization first
-    const organization = await db.organization.create({
-      data: {
+    const { data: organization, error: orgError } = await db
+      .from("organizations")
+      .insert({
         name: companyName,
         type: "MULTIFAMILY", // Default, can be changed later
         phone: phone || null,
-      },
-    });
+      })
+      .select()
+      .single();
+
+    if (orgError || !organization) {
+      console.error("Organization creation error:", orgError);
+      return NextResponse.json(
+        { error: "An error occurred during registration" },
+        { status: 500 }
+      );
+    }
 
     // Create user with organization
-    const user = await db.user.create({
-      data: {
+    const { data: user, error: userError } = await db
+      .from("users")
+      .insert({
         name,
         email: email.toLowerCase(),
         password: hashedPassword,
         role: "CUSTOMER",
         status: "PENDING", // Requires admin approval
-        organizationId: organization.id,
-      },
-    });
+        organization_id: organization.id,
+      })
+      .select("id")
+      .single();
+
+    if (userError || !user) {
+      console.error("User creation error:", userError);
+      // Clean up organization if user creation fails
+      await db.from("organizations").delete().eq("id", organization.id);
+      return NextResponse.json(
+        { error: "An error occurred during registration" },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json(
       {

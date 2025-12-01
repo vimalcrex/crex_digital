@@ -1,9 +1,8 @@
 import { NextAuthOptions, getServerSession } from "next-auth";
-import { PrismaAdapter } from "@auth/prisma-adapter";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
-import type { UserRole } from "@prisma/client";
+import type { UserRole } from "@/types/database";
 
 declare module "next-auth" {
   interface Session {
@@ -36,7 +35,6 @@ declare module "next-auth/jwt" {
 }
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(db) as NextAuthOptions["adapter"],
   session: {
     strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30 days
@@ -57,21 +55,13 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Email and password are required");
         }
 
-        const user = await db.user.findUnique({
-          where: { email: credentials.email.toLowerCase() },
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            image: true,
-            password: true,
-            role: true,
-            status: true,
-            organizationId: true,
-          },
-        });
+        const { data: user, error } = await db
+          .from("users")
+          .select("id, email, name, image, password, role, status, organization_id")
+          .eq("email", credentials.email.toLowerCase())
+          .single();
 
-        if (!user || !user.password) {
+        if (error || !user || !user.password) {
           throw new Error("Invalid email or password");
         }
 
@@ -93,8 +83,8 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           name: user.name,
           image: user.image,
-          role: user.role,
-          organizationId: user.organizationId,
+          role: user.role as UserRole,
+          organizationId: user.organization_id,
         };
       },
     }),

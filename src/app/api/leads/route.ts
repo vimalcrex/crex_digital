@@ -33,17 +33,13 @@ export async function POST(req: Request) {
     const data = validation.data;
 
     // Get property to find lead routing info
-    const property = await db.property.findUnique({
-      where: { id: data.propertyId },
-      select: {
-        id: true,
-        leadEmail: true,
-        leadWebhook: true,
-        websiteUrl: true,
-      },
-    });
+    const { data: property, error: propertyError } = await db
+      .from("properties")
+      .select("id, lead_email, lead_webhook, website_url")
+      .eq("id", data.propertyId)
+      .single();
 
-    if (!property) {
+    if (propertyError || !property) {
       return NextResponse.json(
         { error: "Property not found" },
         { status: 404 }
@@ -51,29 +47,38 @@ export async function POST(req: Request) {
     }
 
     // Create lead record
-    const lead = await db.lead.create({
-      data: {
-        firstName: data.firstName,
-        lastName: data.lastName,
+    const { data: lead, error: leadError } = await db
+      .from("leads")
+      .insert({
+        first_name: data.firstName || null,
+        last_name: data.lastName || null,
         email: data.email,
         phone: data.phone || null,
-        moveInDate: data.moveInDate ? new Date(data.moveInDate) : null,
+        move_in_date: data.moveInDate || null,
         bedrooms: data.bedrooms ? parseInt(data.bedrooms) : null,
         message: data.message || null,
-        propertyId: data.propertyId,
-        landingPageId: data.landingPageId || null,
+        property_id: data.propertyId,
+        landing_page_id: data.landingPageId || null,
         source: data.utm_source || "direct",
         medium: data.utm_medium || null,
         campaign: data.utm_campaign || null,
         status: "NEW",
-      },
-    });
+      })
+      .select()
+      .single();
+
+    if (leadError || !lead) {
+      console.error("Error creating lead:", leadError);
+      return NextResponse.json(
+        { error: "Failed to submit lead" },
+        { status: 500 }
+      );
+    }
 
     // Update landing page submission count if applicable
     if (data.landingPageId) {
-      await db.landingPage.update({
-        where: { id: data.landingPageId },
-        data: { submissions: { increment: 1 } },
+      await db.rpc("increment_landing_page_submissions", {
+        page_id: data.landingPageId,
       });
     }
 
@@ -81,57 +86,57 @@ export async function POST(req: Request) {
     let forwardedTo: string | null = null;
 
     // Send to webhook if configured
-    if (property.leadWebhook) {
+    if (property.lead_webhook) {
       try {
-        await fetch(property.leadWebhook, {
+        await fetch(property.lead_webhook, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             lead: {
               id: lead.id,
-              firstName: lead.firstName,
-              lastName: lead.lastName,
+              firstName: lead.first_name,
+              lastName: lead.last_name,
               email: lead.email,
               phone: lead.phone,
-              moveInDate: lead.moveInDate,
+              moveInDate: lead.move_in_date,
               bedrooms: lead.bedrooms,
               message: lead.message,
               source: lead.source,
-              createdAt: lead.createdAt,
+              createdAt: lead.created_at,
             },
             property: {
               id: property.id,
             },
           }),
         });
-        forwardedTo = property.leadWebhook;
+        forwardedTo = property.lead_webhook;
       } catch (error) {
         console.error("Failed to forward lead to webhook:", error);
       }
     }
 
     // Send email notification if configured (would integrate with SendGrid/SES)
-    if (property.leadEmail) {
+    if (property.lead_email) {
       // TODO: Send email notification
-      // await sendLeadNotificationEmail(property.leadEmail, lead);
-      forwardedTo = forwardedTo || property.leadEmail;
+      // await sendLeadNotificationEmail(property.lead_email, lead);
+      forwardedTo = forwardedTo || property.lead_email;
     }
 
     // Update lead with forwarding info
     if (forwardedTo) {
-      await db.lead.update({
-        where: { id: lead.id },
-        data: {
-          forwardedAt: new Date(),
-          forwardedTo,
-        },
-      });
+      await db
+        .from("leads")
+        .update({
+          forwarded_at: new Date().toISOString(),
+          forwarded_to: forwardedTo,
+        })
+        .eq("id", lead.id);
     }
 
     return NextResponse.json({
       success: true,
       leadId: lead.id,
-      redirectUrl: property.websiteUrl,
+      redirectUrl: property.website_url,
     });
   } catch (error) {
     console.error("Error creating lead:", error);

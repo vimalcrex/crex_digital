@@ -1,16 +1,4 @@
-import type {
-  User,
-  Organization,
-  Property,
-  Campaign,
-  LandingPage,
-  Lead,
-  AdMetric,
-  Invoice,
-  AIRecommendation,
-} from "@prisma/client";
-
-// Re-export Prisma types
+// Re-export database types
 export type {
   User,
   Organization,
@@ -21,9 +9,31 @@ export type {
   AdMetric,
   Invoice,
   AIRecommendation,
-};
+  UserRole,
+  UserStatus,
+  OrganizationType,
+  SubscriptionStatus,
+  PropertyType,
+  PropertyStatus,
+  CampaignStatus,
+  CampaignGoal,
+  AdPlatform,
+  LandingPageStatus,
+  LeadStatus,
+  InvoiceStatus,
+} from "./database";
 
 // Extended types with relations
+import type {
+  User,
+  Organization,
+  Property,
+  Campaign,
+  LandingPage,
+  Lead,
+  AdMetric,
+} from "./database";
+
 export type UserWithOrganization = User & {
   organization: Organization | null;
 };

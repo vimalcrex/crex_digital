@@ -33,26 +33,24 @@ export async function POST(req: Request) {
 
         if (organizationId && type === "setup_fee") {
           // Mark setup fee as paid
-          await db.organization.update({
-            where: { id: organizationId },
-            data: {
-              setupFeePaid: true,
-              stripeCustomerId: session.customer as string,
-            },
-          });
+          await db
+            .from("organizations")
+            .update({
+              setup_fee_paid: true,
+              stripe_customer_id: session.customer as string,
+            })
+            .eq("id", organizationId);
 
           // Create invoice record
-          await db.invoice.create({
-            data: {
-              organizationId,
-              stripeInvoiceId: session.invoice as string,
-              setupFee: 1500, // $1,500 setup fee
-              total: 1500,
-              periodStart: new Date(),
-              periodEnd: new Date(),
-              status: "PAID",
-              paidAt: new Date(),
-            },
+          await db.from("invoices").insert({
+            organization_id: organizationId,
+            stripe_invoice_id: session.invoice as string,
+            setup_fee: 1500, // $1,500 setup fee
+            total: 1500,
+            period_start: new Date().toISOString(),
+            period_end: new Date().toISOString(),
+            status: "PAID",
+            paid_at: new Date().toISOString(),
           });
         }
         break;
@@ -63,13 +61,13 @@ export async function POST(req: Request) {
         const organizationId = subscription.metadata?.organizationId;
 
         if (organizationId) {
-          await db.organization.update({
-            where: { id: organizationId },
-            data: {
-              stripeSubscriptionId: subscription.id,
-              subscriptionStatus: "ACTIVE",
-            },
-          });
+          await db
+            .from("organizations")
+            .update({
+              stripe_subscription_id: subscription.id,
+              subscription_status: "ACTIVE",
+            })
+            .eq("id", organizationId);
         }
         break;
       }
@@ -97,12 +95,12 @@ export async function POST(req: Request) {
               break;
           }
 
-          await db.organization.update({
-            where: { id: organizationId },
-            data: {
-              subscriptionStatus: status,
-            },
-          });
+          await db
+            .from("organizations")
+            .update({
+              subscription_status: status,
+            })
+            .eq("id", organizationId);
         }
         break;
       }
@@ -112,12 +110,12 @@ export async function POST(req: Request) {
         const organizationId = subscription.metadata?.organizationId;
 
         if (organizationId) {
-          await db.organization.update({
-            where: { id: organizationId },
-            data: {
-              subscriptionStatus: "CANCELED",
-            },
-          });
+          await db
+            .from("organizations")
+            .update({
+              subscription_status: "CANCELED",
+            })
+            .eq("id", organizationId);
         }
         break;
       }
@@ -127,29 +125,42 @@ export async function POST(req: Request) {
         const customerId = invoice.customer as string;
 
         // Find organization by Stripe customer ID
-        const organization = await db.organization.findFirst({
-          where: { stripeCustomerId: customerId },
-        });
+        const { data: organization } = await db
+          .from("organizations")
+          .select("id")
+          .eq("stripe_customer_id", customerId)
+          .single();
 
         if (organization) {
-          // Create or update invoice record
-          await db.invoice.upsert({
-            where: { stripeInvoiceId: invoice.id },
-            create: {
-              organizationId: organization.id,
-              stripeInvoiceId: invoice.id,
-              platformFee: (invoice.amount_paid || 0) / 100,
+          // Check if invoice already exists
+          const { data: existingInvoice } = await db
+            .from("invoices")
+            .select("id")
+            .eq("stripe_invoice_id", invoice.id)
+            .single();
+
+          if (existingInvoice) {
+            // Update existing invoice
+            await db
+              .from("invoices")
+              .update({
+                status: "PAID",
+                paid_at: new Date().toISOString(),
+              })
+              .eq("stripe_invoice_id", invoice.id);
+          } else {
+            // Create new invoice
+            await db.from("invoices").insert({
+              organization_id: organization.id,
+              stripe_invoice_id: invoice.id,
+              platform_fee: (invoice.amount_paid || 0) / 100,
               total: (invoice.amount_paid || 0) / 100,
-              periodStart: new Date(invoice.period_start * 1000),
-              periodEnd: new Date(invoice.period_end * 1000),
+              period_start: new Date(invoice.period_start * 1000).toISOString(),
+              period_end: new Date(invoice.period_end * 1000).toISOString(),
               status: "PAID",
-              paidAt: new Date(),
-            },
-            update: {
-              status: "PAID",
-              paidAt: new Date(),
-            },
-          });
+              paid_at: new Date().toISOString(),
+            });
+          }
         }
         break;
       }
@@ -158,33 +169,45 @@ export async function POST(req: Request) {
         const invoice = event.data.object as Stripe.Invoice;
         const customerId = invoice.customer as string;
 
-        const organization = await db.organization.findFirst({
-          where: { stripeCustomerId: customerId },
-        });
+        const { data: organization } = await db
+          .from("organizations")
+          .select("id")
+          .eq("stripe_customer_id", customerId)
+          .single();
 
         if (organization) {
-          await db.organization.update({
-            where: { id: organization.id },
-            data: {
-              subscriptionStatus: "PAST_DUE",
-            },
-          });
+          await db
+            .from("organizations")
+            .update({
+              subscription_status: "PAST_DUE",
+            })
+            .eq("id", organization.id);
 
-          await db.invoice.upsert({
-            where: { stripeInvoiceId: invoice.id },
-            create: {
-              organizationId: organization.id,
-              stripeInvoiceId: invoice.id,
-              platformFee: (invoice.amount_due || 0) / 100,
+          // Check if invoice already exists
+          const { data: existingInvoice } = await db
+            .from("invoices")
+            .select("id")
+            .eq("stripe_invoice_id", invoice.id)
+            .single();
+
+          if (existingInvoice) {
+            await db
+              .from("invoices")
+              .update({
+                status: "FAILED",
+              })
+              .eq("stripe_invoice_id", invoice.id);
+          } else {
+            await db.from("invoices").insert({
+              organization_id: organization.id,
+              stripe_invoice_id: invoice.id,
+              platform_fee: (invoice.amount_due || 0) / 100,
               total: (invoice.amount_due || 0) / 100,
-              periodStart: new Date(invoice.period_start * 1000),
-              periodEnd: new Date(invoice.period_end * 1000),
+              period_start: new Date(invoice.period_start * 1000).toISOString(),
+              period_end: new Date(invoice.period_end * 1000).toISOString(),
               status: "FAILED",
-            },
-            update: {
-              status: "FAILED",
-            },
-          });
+            });
+          }
         }
         break;
       }
